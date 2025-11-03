@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Video {
+  id           Int           @id @default(autoincrement())
+  title        String        @db.VarChar(200)
+  description  String?       @db.VarChar(1000)
+  url          String        @unique @db.VarChar(191)
+  thumbnailUrl String?       @db.VarChar(191)
+  duration     Int
+  category     String        @db.VarChar(100)
+  uploadDate   DateTime      @default(now())
+  uploaderName String        @db.VarChar(100)
+  viewCount    Int           @default(0)
+  fileSize     Int
+  resolution   String        @db.VarChar(50)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tags         VideoTag[]
+  views        VideoView[]
+
+  @@index([category])
+  @@index([resolution])
+  @@index([uploadDate])
+  @@fulltext([title, description, uploaderName])
+}
+
+model Tag {
+  id     Int         @id @default(autoincrement())
+  name   String      @unique @db.VarChar(100)
+  videos VideoTag[]
+}
+
+model VideoTag {
+  videoId Int
+  tagId   Int
+
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, tagId])
+  @@index([tagId])
+}
+
+model VideoView {
+  id        Int      @id @default(autoincrement())
+  videoId   Int
+  viewedAt  DateTime @default(now())
+  viewerIp  String?  @db.VarChar(64)
+  sessionId String?  @db.VarChar(64)
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, viewedAt])
+}
+
+model SearchHistory {
+  id        Int      @id @default(autoincrement())
+  query     String   @db.VarChar(200)
+  filters   Json?
+  createdAt DateTime @default(now())
+}
+
+model SavedSearch {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  query     String   @db.VarChar(200)
+  filters   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SearchMetric {
+  id          Int      @id @default(autoincrement())
+  query       String   @db.VarChar(200)
+  durationMs  Int
+  resultCount Int
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
