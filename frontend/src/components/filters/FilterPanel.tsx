@@ -24,16 +24,9 @@ export function FilterPanel() {
       <div className="filter-panel__header">
         <h2>Filters</h2>
         <div className="filter-panel__actions">
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => {
-              clearFilters();
-              void search({ page: 1 });
-            }}
-          >
+          <button type="button" className="tag-pill" onClick={() => clearFilters()}>
             Clear all
-          </button>
+          </button> &nbsp;
           <button type="button" className="link-button" onClick={() => setExpanded(!expanded)}>
             {expanded ? "Hide" : "Show"}
           </button>
