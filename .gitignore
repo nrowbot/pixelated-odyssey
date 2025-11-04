@@ -5,7 +5,7 @@ backend/dist
 frontend/dist
 .env
 backend/.env
-backend/http_ca.crt
+http_ca.crt
 frontend/.env
 coverage
 .DS_Store
