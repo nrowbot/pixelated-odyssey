@@ -120,8 +120,9 @@ export async function getRelatedVideos(id: number): Promise<Video[]> {
   return response.data.map(toVideo);
 }
 
-export async function incrementViewCount(id: number, sessionId?: string) {
-  await api.post(`/videos/${id}/view`, { sessionId });
+export async function incrementViewCount(id: number, sessionId?: string): Promise<number | undefined> {
+  const response = await api.post<{ id: number; viewCount: number }>(`/videos/${id}/view`, { sessionId });
+  return response.data?.viewCount;
 }
 
 export async function fetchSearchSuggestions(query: string): Promise<{ suggestions: string[]; tags: string[] }> {

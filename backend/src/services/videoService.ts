@@ -58,6 +58,7 @@ export async function listVideos(options: ListVideosOptions) {
 export async function registerView(videoId: number, viewerIp?: string, sessionId?: string): Promise<VideoRecord> {
   const updated = await incrementViewCount(videoId);
   await recordView(videoId, viewerIp, sessionId);
+  await clearSearchCache();
   return updated;
 }
 

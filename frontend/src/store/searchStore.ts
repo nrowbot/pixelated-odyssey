@@ -98,6 +98,7 @@ interface SearchState {
   loadCategories: () => Promise<void>;
   loadPopularTags: () => Promise<void>;
   removeVideoFromResults: (id: number) => void;
+  upsertVideoResult: (video: Video) => void;
 }
 
 const defaultFilters: VideoSearchFilters = {};
@@ -292,6 +293,26 @@ export const useSearchStore = create<SearchState>()(
           };
         });
       },
+      upsertVideoResult(video) {
+        set((state) => {
+          const updateResults = state.results.some((entry) => entry.video.id === video.id)
+            ? state.results.map((entry) => (entry.video.id === video.id ? { ...entry, video } : entry))
+            : state.results;
+
+          const updateTrending = state.trending.some((entry) => entry.id === video.id)
+            ? state.trending.map((entry) => (entry.id === video.id ? video : entry))
+            : state.trending;
+
+          if (updateResults === state.results && updateTrending === state.trending) {
+            return {};
+          }
+
+          return {
+            results: updateResults,
+            trending: updateTrending
+          };
+        });
+      }
     }),
     {
       name: "search-store",

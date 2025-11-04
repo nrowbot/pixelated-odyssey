@@ -18,6 +18,44 @@ A full-stack digital video library featuring a Node.js + MySQL REST API and a Re
 - Elasticsearch 8+
 - Redis 6+
 
+### Local infrastructure (Docker quick start)
+
+You can spin up the required services with Docker:
+
+```bash
+# Elasticsearch 9 (wolfi build)
+docker run \
+  --name pixel-elastic \
+  -p 9200:9200 \
+  -e ELASTIC_PASSWORD=<ES password>\
+  docker.elastic.co/elasticsearch/elasticsearch-wolfi:9.2.0
+
+# MySQL
+docker run \
+  --name pixelated-mysql \
+  -p 3306:3306 \
+  -e MYSQL_DATABASE=pixelated_odyssey \
+  -e MYSQL_ROOT_PASSWORD=<MySQL password> \
+  mysql
+
+# Redis 8
+docker run \
+  --name pixel-redis \
+  -d \
+  -p 6379:6379 \
+  redis:8-alpine
+```
+
+### NOTE 
+> MySQL 8 defaults to `caching_sha2_password`. If your client is using the older mysql_native_password plugin you may need to run:
+> ```sql
+> ALTER USER 'root' IDENTIFIED WITH caching_sha2_password BY '<MySQL password>';
+> FLUSH PRIVILEGES;
+> ```
+> A MySQL CLI inside the container can be opened with `docker exec -it pixelated-mysql mysql -u root -p pixelated_odyssey`. Then enter the 'MySQL password'.
+
+When Elasticsearch boots it prints the generated enrollment token and CA certificate path. Copy the CA as noted below in step 6 of Backend setup (or disable TLS verification for local dev).
+
 ## Backend Setup
 
 1. Install dependencies:
@@ -74,6 +112,8 @@ The server boots with database + Redis connections, creates the Elasticsearch in
 | `POST` | `/api/videos/search/save` | Persist a search/filter combination |
 | `GET` | `/api/videos/search/saved` | Retrieve saved searches |
 | `GET` | `/api/videos/search/saved/:id` | Pull a specific saved search |
+| `GET` | `/api/videos/categories` | List distinct video categories |
+| `GET` | `/api/videos/tags/popular` | Frequency-ranked tag cloud data |
 | `GET` | `/api/videos/:id/related` | Related videos (tags & content similarity) |
 
 Responses normalise tag relations into string arrays for frontend ergonomics. Validation uses Zod, and all controllers funnel through consistent error handling.
@@ -82,7 +122,7 @@ Responses normalise tag relations into string arrays for frontend ergonomics. Va
 
 - **Elasticsearch** for multi-field, fuzzy search with relevance boosting (titles > descriptions > tags > uploader).
 - Supports secure clusters via HTTPS with either the container-provided CA certificate or optional TLS verification skip for local development.
-- **Redis** caches frequent queries (`search:*` keys, 120s TTL) and gracefully degrades if redis is offline.
+- **Redis** caches frequent queries (`search:*` keys, 120s TTL), automatically invalidates whenever videos are created/updated/deleted, and gracefully degrades if Redis is offline.
 - Automatic index bootstrap with custom autocomplete analyzers for suggestions.
 - Fallback Prisma/SQL search path ensures service continuity if ES is unreachable.
 - Search metrics persisted for analytics & popular-search surfacing.
@@ -123,11 +163,12 @@ Responses normalise tag relations into string arrays for frontend ergonomics. Va
 
 ### UX Highlights
 
-- Debounced instant search (300 ms) with autocomplete dropdown & popular tags.
-- Rich filter panel: category, duration buckets, upload-date range, resolution, tag toggles.
-- Save/search history panes, trending list, and “no results” helper suggestions.
-- Grid/List toggle, highlighted terms (via `<mark>`), responsive layout, and lightweight CSS.
-- Video detail page with inline player, related videos, and automatic view tracking.
+- Debounced instant search (300 ms) with autocomplete dropdown and trending tag pill suggestions.
+- Rich filter panel: category, duration buckets, upload-date range, resolution, and a weighted tag cloud that can be toggled like badges.
+- Save/search history panes, trending list, pagination controls (first/prev/next/last) and adjustable page size up to 100 results.
+- CSV or playlist export buttons, and responsive grid/list layouts.
+- Video detail page with inline player, external-link fallback, delete confirmation, view tracking, and related recommendations.
+- Dedicated upload form with validation for metadata, categories, and tags—success redirects to the detail page.
 
 ### Example Queries
 

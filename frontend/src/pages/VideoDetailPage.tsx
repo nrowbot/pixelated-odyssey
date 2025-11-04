@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { deleteVideo, getRelatedVideos, getVideoById, incrementViewCount } from "../services/videoApi";
 import { Video } from "../types/video";
@@ -28,10 +28,11 @@ const videoMimeTypes = [".mp4", ".webm", ".ogg", ".mov", ".mkv"];
 export function VideoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { removeVideoFromResults, search, fetchTrending, page: currentPage, pageSize } = useSearchStore((state) => ({
+  const { removeVideoFromResults, search, fetchTrending, upsertVideoResult, page: currentPage, pageSize } = useSearchStore((state) => ({
     removeVideoFromResults: state.removeVideoFromResults,
     search: state.search,
     fetchTrending: state.fetchTrending,
+    upsertVideoResult: state.upsertVideoResult,
     page: state.page,
     pageSize: state.pageSize
   }));
@@ -41,6 +42,9 @@ export function VideoDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const hasRegisteredView = useRef(false);
+  const lastVideoIdRef = useRef<string | undefined>();
+  const sessionIdRef = useRef<string | undefined>();
 
   const media = useMemo<{ element: ReactNode; isExternal: boolean } | null>(() => {
     if (!video) {
@@ -87,25 +91,90 @@ export function VideoDetailPage() {
   }, [video]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      return undefined;
+    }
 
     const numericId = Number(id);
+    if (Number.isNaN(numericId)) {
+      setVideo(null);
+      setRelated([]);
+      setError("Video not found");
+      setIsLoading(false);
+      return undefined;
+    }
+
+    if (lastVideoIdRef.current !== id) {
+      lastVideoIdRef.current = id;
+      hasRegisteredView.current = false;
+      sessionIdRef.current = undefined;
+    }
+
+    let isActive = true;
     setIsLoading(true);
 
     Promise.all([getVideoById(numericId), getRelatedVideos(numericId)])
       .then(([fetchedVideo, relatedVideos]) => {
+        if (!isActive) {
+          return;
+        }
+
         setVideo(fetchedVideo);
+        upsertVideoResult(fetchedVideo);
         setRelated(relatedVideos);
         setError(null);
         setDeleteError(null);
-        const sessionId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${numericId}-${Date.now()}`;
-        void incrementViewCount(numericId, sessionId);
+
+        if (!hasRegisteredView.current) {
+          hasRegisteredView.current = true;
+          const sessionId = sessionIdRef.current ??
+            (sessionIdRef.current = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${numericId}-${Date.now()}`);
+          incrementViewCount(numericId, sessionId)
+            .then((nextViewCount) => {
+              if (!isActive) {
+                return;
+              }
+
+              setVideo((prev) => {
+                if (!prev) {
+                  return prev;
+                }
+                const updatedViewCount = typeof nextViewCount === "number" ? nextViewCount : prev.viewCount + 1;
+                if (updatedViewCount === prev.viewCount) {
+                  return prev;
+                }
+                const updatedVideo = { ...prev, viewCount: updatedViewCount };
+                upsertVideoResult(updatedVideo);
+                return updatedVideo;
+              });
+            })
+            .catch(() => {
+              // No-op; keep existing count if the view tracking call fails silently
+            });
+        }
       })
       .catch(() => {
+        if (!isActive) {
+          return;
+        }
         setError("Video not found");
+        setVideo(null);
+        setRelated([]);
       })
-      .finally(() => setIsLoading(false));
-  }, [id]);
+      .finally(() => {
+        if (!isActive) {
+          return;
+        }
+        setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+      hasRegisteredView.current = false;
+      sessionIdRef.current = undefined;
+      lastVideoIdRef.current = undefined;
+    };
+  }, [id, upsertVideoResult]);
 
   if (isLoading) {
     return <div className="video-detail">Loading…</div>;
