@@ -162,3 +162,27 @@ export async function listDistinctCategories(): Promise<string[]> {
 
   return results.map((item) => item.category);
 }
+
+export async function listPopularTags(limit = 30): Promise<Array<{ name: string; count: number }>> {
+  const tags = await prisma.tag.findMany({
+    take: limit,
+    orderBy: {
+      videos: {
+        _count: "desc"
+      }
+    },
+    select: {
+      name: true,
+      _count: {
+        select: {
+          videos: true
+        }
+      }
+    }
+  });
+
+  return tags.map((tag) => ({
+    name: tag.name,
+    count: tag._count.videos
+  }));
+}

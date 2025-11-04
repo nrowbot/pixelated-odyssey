@@ -4,12 +4,13 @@ import { useSearchStore } from "../../store/searchStore";
 import { SearchSuggestions } from "./SearchSuggestions";
 
 export function SearchBar() {
-  const { query, setQuery, search, fetchSuggestions, suggestions, popularTags } = useSearchStore((state) => ({
+  const { query, setQuery, search, fetchSuggestions, suggestions, suggestedTags, popularTags } = useSearchStore((state) => ({
     query: state.query,
     setQuery: state.setQuery,
     search: state.search,
     fetchSuggestions: state.fetchSuggestions,
     suggestions: state.suggestions,
+    suggestedTags: state.suggestedTags,
     popularTags: state.popularTags
   }));
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -28,7 +29,10 @@ export function SearchBar() {
     setShowSuggestions(false);
   };
 
-  const hasDropdown = useMemo(() => suggestions.length > 0 || popularTags.length > 0, [suggestions, popularTags]);
+  const hasDropdown = useMemo(
+    () => suggestions.length > 0 || suggestedTags.length > 0 || popularTags.length > 0,
+    [suggestions, suggestedTags, popularTags]
+  );
 
   return (
     <div className="search-bar">
@@ -54,6 +58,7 @@ export function SearchBar() {
       {showSuggestions && hasDropdown && (
         <SearchSuggestions
           suggestions={suggestions}
+          suggestedTags={suggestedTags}
           popularTags={popularTags}
           onSelect={(value) => {
             setQuery(value);

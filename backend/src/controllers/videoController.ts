@@ -9,13 +9,15 @@ import {
   registerView,
   fetchTrendingVideos,
   fetchRelatedVideos,
-  fetchCategories
+  fetchCategories,
+  fetchPopularTags
 } from "../services/videoService";
 import { normalizePagination } from "../utils/pagination";
 import { searchVideos, getSearchSuggestions } from "../services/searchService";
 import { SearchSortOption } from "../types/search";
 import { saveSearch, listSavedSearches, getSavedSearchById } from "../repositories/searchRepository";
 import { toVideoResponse, toVideoListResponse } from "../utils/videoMapper";
+import { sanitizeSearchInput, sanitizeStringArray } from "../utils/sanitizer";
 
 interface SearchQueryParams {
   q?: string;
@@ -89,28 +91,31 @@ export const deleteVideoHandler = asyncHandler(async (req: Request, res: Respons
 export const searchVideosHandler = asyncHandler(async (req: Request, res: Response) => {
   const query = req.query as SearchQueryParams;
   const tags = parseTags(query.tags);
+  const sanitizedTags = sanitizeStringArray(tags);
 
   const allowedSorts: SearchSortOption[] = ["relevance", "uploadDate", "viewCount", "duration"];
   const sort = query.sort && allowedSorts.includes(query.sort) ? query.sort : undefined;
 
   const { page, pageSize } = normalizePagination(query.page, query.pageSize);
+  const sanitizedQuery = sanitizeSearchInput(query.q);
+  const sanitizedWithin = sanitizeSearchInput(query.within);
 
   const result = await searchVideos({
-    query: query.q,
+    query: sanitizedQuery,
     filters: {
-      category: query.category,
+      category: sanitizeSearchInput(query.category),
       duration: query.duration,
       minDuration: query.minDuration,
       maxDuration: query.maxDuration,
-      uploadDateFrom: query.uploadDateFrom,
-      uploadDateTo: query.uploadDateTo,
-      resolution: query.resolution,
-      tags
+      uploadDateFrom: sanitizeSearchInput(query.uploadDateFrom),
+      uploadDateTo: sanitizeSearchInput(query.uploadDateTo),
+      resolution: sanitizeSearchInput(query.resolution),
+      tags: sanitizedTags
     },
     sort,
     page,
     pageSize,
-    within: query.within
+    within: sanitizedWithin
   });
 
   res.json({
@@ -136,6 +141,13 @@ export const searchSuggestionsHandler = asyncHandler(async (req: Request, res: R
 export const listCategoriesHandler = asyncHandler(async (_req: Request, res: Response) => {
   const categories = await fetchCategories();
   res.json({ categories });
+});
+
+export const popularTagsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const limitParam = req.query.limit ? Number(req.query.limit) : undefined;
+  const limit = Number.isFinite(limitParam) && limitParam ? Math.max(1, Math.min(100, Math.round(limitParam))) : undefined;
+  const tags = await fetchPopularTags(limit);
+  res.json({ tags });
 });
 
 export const registerViewHandler = asyncHandler(async (req: Request, res: Response) => {

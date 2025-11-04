@@ -39,3 +39,22 @@ export interface VideoSearchResult {
   score: number;
   highlights: Highlight;
 }
+
+export interface PopularTag {
+  name: string;
+  count: number;
+}
+
+export interface CreateVideoInput {
+  title: string;
+  description?: string;
+  url: string;
+  thumbnailUrl?: string;
+  duration: number;
+  category: string;
+  tags?: string[];
+  uploadDate?: string;
+  uploaderName: string;
+  fileSize: number;
+  resolution: string;
+}

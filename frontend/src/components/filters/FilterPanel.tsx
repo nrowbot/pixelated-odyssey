@@ -1,22 +1,55 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchStore } from "../../store/searchStore";
 
 const resolutions = ["4K", "1440p", "1080p", "720p", "480p"];
 
 export function FilterPanel() {
-  const { filters, setFilters, clearFilters, search, popularTags, categories } = useSearchStore((state) => ({
+  const { filters, setFilters, clearFilters, search, popularTags, categories, loadPopularTags } = useSearchStore((state) => ({
     filters: state.filters,
     setFilters: state.setFilters,
     clearFilters: state.clearFilters,
     search: state.search,
     popularTags: state.popularTags,
-    categories: state.categories
+    categories: state.categories,
+    loadPopularTags: state.loadPopularTags
   }));
   const [expanded, setExpanded] = useState(true);
 
   const handleFiltersChanged = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void search({ page: 1 });
+  };
+
+  useEffect(() => {
+    if (popularTags.length === 0) {
+      void loadPopularTags();
+    }
+  }, [popularTags.length, loadPopularTags]);
+
+  const sortedTags = useMemo(() => {
+    if (!popularTags.length) {
+      return [];
+    }
+    return [...popularTags].sort((a, b) => b.count - a.count);
+  }, [popularTags]);
+
+  const { minCount, maxCount } = useMemo(() => {
+    if (!sortedTags.length) {
+      return { minCount: 0, maxCount: 0 };
+    }
+    const counts = sortedTags.map((item) => item.count);
+    return {
+      minCount: Math.min(...counts),
+      maxCount: Math.max(...counts)
+    };
+  }, [sortedTags]);
+
+  const normalizeSize = (count: number) => {
+    if (maxCount === minCount) {
+      return 1;
+    }
+    const ratio = (count - minCount) / (maxCount - minCount);
+    return 0.9 + ratio * 0.8;
   };
 
   return (
@@ -135,27 +168,33 @@ export function FilterPanel() {
           {popularTags.length > 0 && (
             <div className="filter-panel__group">
               <span>Popular tags</span>
-              <div className="filter-panel__tags">
-                {popularTags.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={`tag-pill ${filters.tags?.includes(tag) ? "tag-pill--active" : ""}`}
-                    onClick={() => {
-                      const current = new Set(filters.tags ?? []);
-                      if (current.has(tag)) {
-                        current.delete(tag);
-                      } else {
-                        current.add(tag);
-                      }
-                      const nextTags = Array.from(current);
-                      setFilters({ tags: nextTags });
-                      void search({ page: 1 });
-                    }}
-                  >
-                    #{tag}
-                  </button>
-                ))}
+              <div className="tag-cloud" aria-label="Popular tags">
+                {sortedTags.map((tag) => {
+                  const isActive = filters.tags?.includes(tag.name) ?? false;
+                  const fontSize = normalizeSize(tag.count);
+                  return (
+                    <button
+                      key={tag.name}
+                      type="button"
+                      className={`tag-cloud__tag ${isActive ? "tag-cloud__tag--active" : ""}`}
+                      onClick={() => {
+                        const current = new Set(filters.tags ?? []);
+                        if (current.has(tag.name)) {
+                          current.delete(tag.name);
+                        } else {
+                          current.add(tag.name);
+                        }
+                        const nextTags = Array.from(current);
+                        setFilters({ tags: nextTags });
+                        void search({ page: 1 });
+                      }}
+                      style={{ fontSize: `${fontSize}rem` }}
+                      title={`${tag.name} (${tag.count} videos)`}
+                    >
+                      #{tag.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

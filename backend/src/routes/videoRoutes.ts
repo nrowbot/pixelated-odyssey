@@ -13,7 +13,8 @@ import {
   saveSearchHandler,
   listSavedSearchesHandler,
   getSavedSearchHandler,
-  listCategoriesHandler
+  listCategoriesHandler,
+  popularTagsHandler
 } from "../controllers/videoController";
 import {
   createVideoSchema,
@@ -36,6 +37,7 @@ router.post("/videos/search/save", validateRequest(createSavedSearchSchema), sav
 router.get("/videos/search/saved", listSavedSearchesHandler);
 router.get("/videos/search/saved/:id", getSavedSearchHandler);
 router.get("/videos/categories", listCategoriesHandler);
+router.get("/videos/tags/popular", popularTagsHandler);
 router.get("/videos/:id", validateRequest(videoIdParamSchema), getVideoHandler);
 router.put("/videos/:id", validateRequest(updateVideoSchema), updateVideoHandler);
 router.delete("/videos/:id", validateRequest(videoIdParamSchema), deleteVideoHandler);

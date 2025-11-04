@@ -113,6 +113,21 @@ export async function initializeSearchInfrastructure() {
   await ensureIndex();
 }
 
+export async function clearSearchCache() {
+  if (!redisClient.isOpen) {
+    return;
+  }
+
+  try {
+    const keys = await redisClient.keys("search:*");
+    if (keys.length) {
+      await redisClient.del(keys);
+    }
+  } catch (error) {
+    console.warn("Failed to clear search cache", error);
+  }
+}
+
 export async function indexVideo(video: VideoWithRelations) {
   await ensureIndex();
 

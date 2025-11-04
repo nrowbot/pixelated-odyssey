@@ -1,10 +1,15 @@
+import { PopularTag } from "../../types/video";
+
 interface SearchSuggestionsProps {
   suggestions: string[];
-  popularTags: string[];
+  suggestedTags: string[];
+  popularTags: PopularTag[];
   onSelect: (value: string) => void;
 }
 
-export function SearchSuggestions({ suggestions, popularTags, onSelect }: SearchSuggestionsProps) {
+export function SearchSuggestions({ suggestions, suggestedTags, popularTags, onSelect }: SearchSuggestionsProps) {
+  const trendingTags = popularTags.slice(0, 12);
+
   return (
     <div className="search-suggestions">
       {suggestions.length > 0 && (
@@ -21,13 +26,25 @@ export function SearchSuggestions({ suggestions, popularTags, onSelect }: Search
           </ul>
         </div>
       )}
-      {popularTags.length > 0 && (
+      {suggestedTags.length > 0 && (
         <div>
-          <div className="search-suggestions__header">Popular tags</div>
+          <div className="search-suggestions__header">Matching tags</div>
           <div className="search-suggestions__tags">
-            {popularTags.map((tag) => (
+            {suggestedTags.map((tag) => (
               <button key={tag} className="search-suggestions__tag" onMouseDown={() => onSelect(tag)}>
                 #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {trendingTags.length > 0 && (
+        <div>
+          <div className="search-suggestions__header">Trending tags</div>
+          <div className="search-suggestions__tags">
+            {trendingTags.map((tag) => (
+              <button key={tag.name} className="search-suggestions__tag" onMouseDown={() => onSelect(tag.name)}>
+                #{tag.name}
               </button>
             ))}
           </div>

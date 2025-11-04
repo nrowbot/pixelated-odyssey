@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Video, VideoSearchFilters, SearchSortOption, VideoSearchResult } from "../types/video";
+import { Video, VideoSearchFilters, SearchSortOption, VideoSearchResult, PopularTag } from "../types/video";
 import {
   fetchSearchSuggestions,
   getSavedSearches,
@@ -9,6 +9,7 @@ import {
   searchVideosApi,
   SearchVideosParams,
   getVideoCategories,
+  getPopularTags,
   type SavedSearch
 } from "../services/videoApi";
 
@@ -73,18 +74,21 @@ interface SearchState {
   trending: Video[];
   isLoading: boolean;
   suggestions: string[];
-  popularTags: string[];
+  suggestedTags: string[];
+  popularTags: PopularTag[];
   categories: string[];
   recentSearches: RecentSearch[];
   savedSearches: SavedSearch[];
   viewMode: "grid" | "list";
   error?: string;
+  didYouMean?: string;
   search: (params?: Partial<SearchVideosParams>) => Promise<void>;
   setQuery: (query: string) => void;
   setFilters: (filters: Partial<VideoSearchFilters>) => void;
   clearFilters: () => void;
   setSort: (sort: SearchSortOption) => void;
   setPage: (page: number) => void;
+  setPageSize: (pageSize: number) => void;
   fetchTrending: () => Promise<void>;
   fetchSuggestions: (query: string) => Promise<void>;
   saveSearch: (name: string) => Promise<void>;
@@ -92,6 +96,8 @@ interface SearchState {
   applySavedSearch: (id: number) => Promise<void>;
   setViewMode: (mode: "grid" | "list") => void;
   loadCategories: () => Promise<void>;
+  loadPopularTags: () => Promise<void>;
+  removeVideoFromResults: (id: number) => void;
 }
 
 const defaultFilters: VideoSearchFilters = {};
@@ -111,12 +117,14 @@ export const useSearchStore = create<SearchState>()(
       trending: [],
       isLoading: false,
       suggestions: [],
+      suggestedTags: [],
       popularTags: [],
       recentSearches: [],
       savedSearches: [],
       viewMode: "grid",
       categories: [],
       error: undefined,
+      didYouMean: undefined,
       search: async (params) => {
         const state = get();
         const query = params?.query ?? state.query;
@@ -126,7 +134,7 @@ export const useSearchStore = create<SearchState>()(
         const within = params?.within;
         const nextFilters = params?.filters ? sanitizeFilters(params.filters) : state.filters;
 
-        set({ isLoading: true, error: undefined });
+        set({ isLoading: true, error: undefined, didYouMean: undefined });
 
         try {
           const response = await searchVideosApi({
@@ -137,6 +145,18 @@ export const useSearchStore = create<SearchState>()(
             pageSize,
             within
           });
+
+          let suggestion: string | undefined;
+          if ((query?.trim() ?? "").length > 0 && response.total === 0) {
+            try {
+              const { suggestions, tags } = await fetchSearchSuggestions(query ?? "");
+              const candidates = [...suggestions, ...tags];
+              const normalizedQuery = query.trim().toLowerCase();
+              suggestion = candidates.find((item) => item.toLowerCase() !== normalizedQuery);
+            } catch (suggestionError) {
+              console.error("Failed to resolve suggestions", suggestionError);
+            }
+          }
 
           const recent: RecentSearch = {
             query,
@@ -159,7 +179,8 @@ export const useSearchStore = create<SearchState>()(
             tookMs: response.tookMs,
             summary: response.summary,
             isLoading: false,
-            recentSearches: updatedRecent
+            recentSearches: updatedRecent,
+            didYouMean: suggestion
           });
         } catch (error) {
           console.error("Search failed", error);
@@ -170,7 +191,8 @@ export const useSearchStore = create<SearchState>()(
             total: 0,
             summary: "",
             tookMs: 0,
-            filters: params?.filters ? nextFilters : state.filters
+            filters: params?.filters ? nextFilters : state.filters,
+            didYouMean: undefined
           });
         }
       },
@@ -182,6 +204,7 @@ export const useSearchStore = create<SearchState>()(
       clearFilters: () => set({ filters: {} }),
       setSort: (sort) => set({ sort }),
       setPage: (page) => set({ page }),
+      setPageSize: (pageSize) => set({ pageSize }),
       fetchTrending: async () => {
         try {
           const trending = await getTrendingVideos();
@@ -192,13 +215,13 @@ export const useSearchStore = create<SearchState>()(
       },
       fetchSuggestions: async (query) => {
         if (!query) {
-          set({ suggestions: [], popularTags: [] });
+          set({ suggestions: [], suggestedTags: [] });
           return;
         }
 
         try {
           const { suggestions, tags } = await fetchSearchSuggestions(query);
-          set({ suggestions, popularTags: tags });
+          set({ suggestions, suggestedTags: tags });
         } catch (error) {
           console.error("Failed to fetch suggestions", error);
         }
@@ -246,7 +269,29 @@ export const useSearchStore = create<SearchState>()(
         } catch (error) {
           console.error("Failed to load categories", error);
         }
-      }
+      },
+      loadPopularTags: async () => {
+        try {
+          const tags = await getPopularTags();
+          set({ popularTags: tags });
+        } catch (error) {
+          console.error("Failed to load popular tags", error);
+        }
+      },
+      removeVideoFromResults(id: number) {
+        set((state) => {
+          const filteredResults = state.results.filter((item) => item.video.id !== id);
+          const filteredTrending = state.trending.filter((item) => item.id !== id);
+          const removedCount = state.results.length - filteredResults.length;
+          const nextTotal = removedCount > 0 ? Math.max(0, state.total - removedCount) : state.total;
+
+          return {
+            results: filteredResults,
+            trending: filteredTrending,
+            total: nextTotal
+          };
+        });
+      },
     }),
     {
       name: "search-store",

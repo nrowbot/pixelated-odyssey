@@ -6,15 +6,17 @@ import {
   listVideos as listVideoRecords,
   updateVideo as updateVideoRecord,
   incrementViewCount,
-  listDistinctCategories
+  listDistinctCategories,
+  listPopularTags
 } from "../repositories/videoRepository";
 import { recordView, getTrendingVideos } from "../repositories/videoViewRepository";
 import { HttpError } from "../middleware/errorHandler";
-import { indexVideo, removeVideoFromIndex, getRelatedVideos } from "./searchService";
+import { indexVideo, removeVideoFromIndex, getRelatedVideos, clearSearchCache } from "./searchService";
 
 export async function createVideo(input: CreateVideoInput) {
   const created = await createVideoRecord(input);
   await indexVideo(created);
+  await clearSearchCache();
   return created;
 }
 
@@ -26,6 +28,7 @@ export async function updateVideo(id: number, input: UpdateVideoInput) {
 
   const updated = await updateVideoRecord(id, input);
   await indexVideo(updated);
+  await clearSearchCache();
   return updated;
 }
 
@@ -37,6 +40,7 @@ export async function removeVideo(id: number) {
 
   await deleteVideoRecord(id);
   await removeVideoFromIndex(id);
+  await clearSearchCache();
 }
 
 export async function fetchVideo(id: number) {
@@ -71,4 +75,8 @@ export async function fetchRelatedVideos(videoId: number) {
 
 export async function fetchCategories() {
   return listDistinctCategories();
+}
+
+export async function fetchPopularTags(limit?: number) {
+  return listPopularTags(limit);
 }

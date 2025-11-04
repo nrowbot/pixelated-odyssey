@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { Video, VideoSearchFilters, SearchSortOption, VideoSearchResult, Highlight } from "../types/video";
+import { Video, VideoSearchFilters, SearchSortOption, VideoSearchResult, Highlight, PopularTag, CreateVideoInput } from "../types/video";
 
 export interface SearchVideosParams {
   query?: string;
@@ -155,4 +155,20 @@ export async function getSavedSearches(): Promise<SavedSearch[]> {
 export async function getVideoCategories(): Promise<string[]> {
   const response = await api.get<{ categories: string[] }>("/videos/categories");
   return response.data.categories ?? [];
+}
+
+export async function getPopularTags(limit = 30): Promise<PopularTag[]> {
+  const response = await api.get<{ tags: PopularTag[] }>("/videos/tags/popular", { params: { limit } });
+  return response.data.tags ?? [];
+}
+
+export async function createVideo(data: CreateVideoInput): Promise<Video> {
+  const response = await api.post<VideoApiResponse>("/videos", {
+    ...data
+  });
+  return toVideo(response.data);
+}
+
+export async function deleteVideo(id: number): Promise<void> {
+  await api.delete(`/videos/${id}`);
 }

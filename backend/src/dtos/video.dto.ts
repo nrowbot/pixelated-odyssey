@@ -33,7 +33,7 @@ export interface ListVideosOptions {
   pageSize: number;
 }
 
-export type VideoRecord = Prisma.VideoGetPayload<{}>;
+export type VideoRecord = Prisma.VideoGetPayload<Record<string, never>>;
 
 export type VideoWithRelations = Prisma.VideoGetPayload<{
   include: {

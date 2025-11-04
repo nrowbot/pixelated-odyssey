@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { SearchBar } from "../components/search/SearchBar";
 import { FilterPanel } from "../components/filters/FilterPanel";
 import { VideoGrid } from "../components/videos/VideoGrid";
@@ -6,10 +7,11 @@ import { ViewToggle } from "../components/videos/ViewToggle";
 import { SearchSummary } from "../components/search/SearchSummary";
 import { RecentSearches } from "../components/search/RecentSearches";
 import { SavedSearches } from "../components/search/SavedSearches";
+import { PaginationControls } from "../components/videos/PaginationControls";
 import { useSearchStore } from "../store/searchStore";
 
 export function VideoLibraryPage() {
-  const { results, viewMode, isLoading, search, fetchTrending, trending, saveSearch, loadCategories } = useSearchStore((state) => ({
+  const { results, viewMode, isLoading, search, fetchTrending, trending, saveSearch, loadCategories, loadPopularTags, page, pageSize, total, setPage, setPageSize } = useSearchStore((state) => ({
     results: state.results,
     viewMode: state.viewMode,
     isLoading: state.isLoading,
@@ -17,14 +19,40 @@ export function VideoLibraryPage() {
     fetchTrending: state.fetchTrending,
     trending: state.trending,
     saveSearch: state.saveSearch,
-    loadCategories: state.loadCategories
+    loadCategories: state.loadCategories,
+    loadPopularTags: state.loadPopularTags,
+    page: state.page,
+    pageSize: state.pageSize,
+    total: state.total,
+    setPage: state.setPage,
+    setPageSize: state.setPageSize
   }));
 
   useEffect(() => {
     void fetchTrending();
     void search({ page: 1 });
     void loadCategories();
-  }, [fetchTrending, search, loadCategories]);
+    void loadPopularTags();
+  }, [fetchTrending, search, loadCategories, loadPopularTags]);
+
+  const handlePageChange = (nextPage: number) => {
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const targetPage = Math.min(Math.max(nextPage, 1), totalPages);
+    if (targetPage === page) {
+      return;
+    }
+    setPage(targetPage);
+    void search({ page: targetPage });
+  };
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    if (nextPageSize === pageSize) {
+      return;
+    }
+    setPageSize(nextPageSize);
+    setPage(1);
+    void search({ page: 1, pageSize: nextPageSize });
+  };
 
   return (
     <div className="layout">
@@ -34,6 +62,9 @@ export function VideoLibraryPage() {
         <SearchBar />
         <SearchSummary />
         <div className="layout__header-actions">
+          <Link to="/upload" className="secondary-button secondary-button--inverted">
+            Add video
+          </Link>
           <button
             type="button"
             className="primary-button"
@@ -52,7 +83,25 @@ export function VideoLibraryPage() {
       <main className="layout__content">
         <FilterPanel />
         <section className="layout__results">
+          {!isLoading && (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
           {isLoading ? <div className="loading">Searching…</div> : <VideoGrid results={results} viewMode={viewMode} />}
+          {!isLoading && total > 0 && (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
         </section>
         <aside className="layout__aside">
           <SavedSearches />
