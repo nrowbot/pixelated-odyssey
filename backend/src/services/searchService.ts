@@ -162,7 +162,7 @@ function buildFilterClauses(filters?: VideoSearchFilters): estypes.QueryDslQuery
   const clauses: estypes.QueryDslQueryContainer[] = [];
 
   if (filters.category) {
-    console.log('Category', filters.category);
+    console.log(`Category: ${filters.category}`);
     clauses.push({ term: { category: filters.category } });
   }
 
@@ -297,6 +297,8 @@ async function fallbackSearch(params: SearchVideosParams): Promise<SearchRespons
   }
 
   if (filters?.category) {
+
+    console.log(`Category Fallback: ${filters.category}`);
     where.category = filters.category;
   }
 
@@ -452,6 +454,7 @@ export async function searchVideos(params: SearchVideosParams): Promise<SearchRe
     }
 
     const response = await elasticClient.search(searchRequest);
+    console.log(`Response: ${JSON.stringify(response)}`);
 
     const tookMs = response.took ?? Math.round(performance.now() - start);
     const hits = response.hits.hits as Array<estypes.SearchHit<IndexVideoPayload>>;

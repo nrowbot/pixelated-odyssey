@@ -1,7 +1,4 @@
 import type { Prisma } from "../../node_modules/.prisma/client/index.d.ts";
-// import { PrismaClient } from '../generated/prisma'
-
-// const prisma = new PrismaClient()
 
 export interface CreateVideoInput {
   title: string;
