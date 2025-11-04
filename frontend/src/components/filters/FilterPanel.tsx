@@ -16,7 +16,7 @@ export function FilterPanel() {
 
   const handleFiltersChanged = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void search({ filters, page: 1 });
+    void search({ page: 1 });
   };
 
   return (
@@ -29,7 +29,7 @@ export function FilterPanel() {
             className="link-button"
             onClick={() => {
               clearFilters();
-              void search({ filters: {}, page: 1 });
+              void search({ page: 1 });
             }}
           >
             Clear all
@@ -48,7 +48,7 @@ export function FilterPanel() {
               onChange={(event) => {
                 const value = event.target.value || undefined;
                 setFilters({ category: value });
-                void search({ filters: { category: value }, page: 1 });
+                void search({ page: 1 });
               }}
             >
               <option value="">All categories</option>
@@ -157,7 +157,7 @@ export function FilterPanel() {
                       }
                       const nextTags = Array.from(current);
                       setFilters({ tags: nextTags });
-                      void search({ filters: { ...filters, tags: nextTags }, page: 1 });
+                      void search({ page: 1 });
                     }}
                   >
                     #{tag}

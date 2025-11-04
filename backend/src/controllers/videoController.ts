@@ -16,7 +16,6 @@ import { searchVideos, getSearchSuggestions } from "../services/searchService";
 import { SearchSortOption } from "../types/search";
 import { saveSearch, listSavedSearches, getSavedSearchById } from "../repositories/searchRepository";
 import { toVideoResponse, toVideoListResponse } from "../utils/videoMapper";
-import { SearchSortOption } from "../types/search";
 
 interface SearchQueryParams {
   q?: string;

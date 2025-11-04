@@ -1,6 +1,6 @@
-import { Prisma, Tag, Video } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/database";
-import { CreateVideoInput, ListVideosOptions, UpdateVideoInput, VideoWithRelations } from "../dtos/video.dto";
+import { CreateVideoInput, ListVideosOptions, UpdateVideoInput, VideoWithRelations, VideoRecord } from "../dtos/video.dto";
 import { normalizeTags } from "../utils/tagNormalizer";
 
 async function syncTags(transaction: Prisma.TransactionClient, videoId: number, tags?: string[]) {
@@ -27,8 +27,6 @@ async function syncTags(transaction: Prisma.TransactionClient, videoId: number, 
   const tagsToAdd = tagNames.filter((name) => !existingTagNames.has(name));
 
   if (tagsToAdd.length) {
-    const tagRecords: Tag[] = [];
-
     for (const name of tagsToAdd) {
       const tag = await transaction.tag.upsert({
         where: { name },
@@ -36,15 +34,11 @@ async function syncTags(transaction: Prisma.TransactionClient, videoId: number, 
         update: {}
       });
 
-      tagRecords.push(tag);
-    }
-
-    if (tagRecords.length) {
-      await transaction.videoTag.createMany({
-        data: tagRecords.map((tag) => ({
+      await transaction.videoTag.create({
+        data: {
           videoId,
           tagId: tag.id
-        }))
+        }
       });
     }
   }
@@ -69,23 +63,20 @@ export async function createVideo(data: CreateVideoInput): Promise<VideoWithRela
     });
 
     if (tagNames.length) {
-      const tags: Tag[] = [];
-
       for (const name of tagNames) {
         const tag = await tx.tag.upsert({
           where: { name },
           create: { name },
           update: {}
         });
-        tags.push(tag);
-      }
 
-      await tx.videoTag.createMany({
-        data: tags.map((tag) => ({
-          videoId: video.id,
-          tagId: tag.id
-        }))
-      });
+        await tx.videoTag.create({
+          data: {
+            videoId: video.id,
+            tagId: tag.id
+          }
+        });
+      }
     }
 
     const created = await tx.video.findUniqueOrThrow({
@@ -155,7 +146,7 @@ export async function listVideos(options: ListVideosOptions): Promise<{ videos: 
   return { videos, total };
 }
 
-export async function incrementViewCount(videoId: number): Promise<Video> {
+export async function incrementViewCount(videoId: number): Promise<VideoRecord> {
   return prisma.video.update({
     where: { id: videoId },
     data: { viewCount: { increment: 1 } }

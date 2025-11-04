@@ -11,6 +11,8 @@ import { env } from "./config/env";
 
 const app = express();
 
+app.disable("etag");
+
 app.use(
   pinoHttp({
     level: env.nodeEnv === "development" ? "debug" : "info"

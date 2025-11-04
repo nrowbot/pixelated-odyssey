@@ -1,5 +1,4 @@
-import { Video } from "@prisma/client";
-import { CreateVideoInput, ListVideosOptions, UpdateVideoInput } from "../dtos/video.dto";
+import { CreateVideoInput, ListVideosOptions, UpdateVideoInput, VideoRecord } from "../dtos/video.dto";
 import {
   createVideo as createVideoRecord,
   deleteVideo as deleteVideoRecord,
@@ -52,7 +51,7 @@ export async function listVideos(options: ListVideosOptions) {
   return listVideoRecords(options);
 }
 
-export async function registerView(videoId: number, viewerIp?: string, sessionId?: string): Promise<Video> {
+export async function registerView(videoId: number, viewerIp?: string, sessionId?: string): Promise<VideoRecord> {
   const updated = await incrementViewCount(videoId);
   await recordView(videoId, viewerIp, sessionId);
   return updated;

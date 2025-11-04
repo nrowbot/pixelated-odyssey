@@ -1,6 +1,5 @@
 import { performance } from "perf_hooks";
 import type { estypes } from "@elastic/elasticsearch";
-import { Prisma } from "@prisma/client";
 import { elasticClient, videoIndexName } from "../config/elasticsearch";
 import { redisClient } from "../config/redis";
 import { prisma } from "../config/database";
@@ -32,6 +31,13 @@ interface IndexVideoPayload {
   resolution: string;
   tags: string[];
 }
+
+type VideoFindManyArgs = Parameters<typeof prisma.video.findMany>[0];
+type VideoWhereInput = VideoFindManyArgs extends { where?: infer W } ? NonNullable<W> : Record<string, unknown>;
+type VideoOrFilter = NonNullable<VideoWhereInput["OR"]>;
+type VideoTagsFilter = NonNullable<VideoWhereInput["tags"]>;
+type DurationFilter = Extract<NonNullable<VideoWhereInput["duration"]>, Record<string, unknown>>;
+type UploadDateFilter = Extract<NonNullable<VideoWhereInput["uploadDate"]>, Record<string, unknown>>;
 
 async function ensureIndex() {
   const exists = await elasticClient.indices.exists({ index: videoIndexName });
@@ -156,6 +162,7 @@ function buildFilterClauses(filters?: VideoSearchFilters): estypes.QueryDslQuery
   const clauses: estypes.QueryDslQueryContainer[] = [];
 
   if (filters.category) {
+    console.log('Category', filters.category);
     clauses.push({ term: { category: filters.category } });
   }
 
@@ -170,12 +177,12 @@ function buildFilterClauses(filters?: VideoSearchFilters): estypes.QueryDslQuery
   const range = resolveDurationRange(filters.duration);
 
   if (typeof range.min === "number" || typeof range.max === "number") {
-    const durationRange: { gte?: number; lt?: number } = {};
+    const durationRange: { gte?: number; lte?: number } = {};
     if (typeof range.min === "number") {
       durationRange.gte = range.min;
     }
     if (typeof range.max === "number") {
-      durationRange.lt = range.max;
+      durationRange.lte = range.max;
     }
     clauses.push({ range: { duration: durationRange } });
   }
@@ -189,12 +196,16 @@ function buildFilterClauses(filters?: VideoSearchFilters): estypes.QueryDslQuery
   }
 
   if (filters.uploadDateFrom || filters.uploadDateTo) {
+    const dateRange: { gte?: string; lte?: string } = {};
+    if (filters.uploadDateFrom) {
+      dateRange.gte = filters.uploadDateFrom;  // Already start-of-day, fine
+    }
+    if (filters.uploadDateTo) {
+      dateRange.lte = `${filters.uploadDateTo}T23:59:59.999Z`;  // End of day
+    }
     clauses.push({
       range: {
-        uploadDate: {
-          gte: filters.uploadDateFrom,
-          lte: filters.uploadDateTo
-        }
+        uploadDate: dateRange
       }
     });
   }
@@ -202,16 +213,16 @@ function buildFilterClauses(filters?: VideoSearchFilters): estypes.QueryDslQuery
   return clauses;
 }
 
-function normalizeSort(sort?: SearchSortOption) {
+function normalizeSort(sort?: SearchSortOption): estypes.Sort | undefined {
   switch (sort) {
     case "uploadDate":
-      return [{ uploadDate: { order: "desc" } }];
+      return [{ uploadDate: { order: "desc" as const } }];
     case "viewCount":
-      return [{ viewCount: { order: "desc" } }];
+      return [{ viewCount: { order: "desc" as const } }];
     case "duration":
-      return [{ duration: { order: "asc" } }];
+      return [{ duration: { order: "asc" as const } }];
     default:
-      return ["_score"];
+      return undefined;
   }
 }
 
@@ -262,24 +273,27 @@ function hydrateResults(
 
 async function fallbackSearch(params: SearchVideosParams): Promise<SearchResponse<VideoWithRelations>> {
   const { query, filters, page = 1, pageSize = 12 } = params;
+  
 
-  const where: Prisma.VideoWhereInput = {};
+  const where: VideoWhereInput = {};
 
   if (query) {
-    where.OR = [
-      { title: { contains: query, mode: "insensitive" } },
-      { description: { contains: query, mode: "insensitive" } },
-      { uploaderName: { contains: query, mode: "insensitive" } },
+    const orClauses = [
+      { title: { contains: query, mode: "insensitive" as const } },
+      { description: { contains: query, mode: "insensitive" as const } },
+      { uploaderName: { contains: query, mode: "insensitive" as const } },
       {
         tags: {
           some: {
             tag: {
-              name: { contains: query, mode: "insensitive" }
+              name: { contains: query, mode: "insensitive" as const }
             }
           }
         }
       }
-    ];
+    ] as VideoOrFilter;
+
+    where.OR = orClauses;
   }
 
   if (filters?.category) {
@@ -299,13 +313,13 @@ async function fallbackSearch(params: SearchVideosParams): Promise<SearchRespons
           }
         }
       }
-    };
+    } as VideoTagsFilter;
   }
 
   const range = resolveDurationRange(filters?.duration);
 
   if (typeof range.min === "number" || typeof range.max === "number" || filters?.minDuration || filters?.maxDuration) {
-    const durationFilter: Prisma.IntFilter = {};
+    const durationFilter: { gte?: number; lte?: number } = {};
     if (typeof range.min === "number") {
       durationFilter.gte = range.min;
     }
@@ -318,18 +332,20 @@ async function fallbackSearch(params: SearchVideosParams): Promise<SearchRespons
     if (filters?.maxDuration) {
       durationFilter.lte = durationFilter.lte !== undefined ? Math.min(durationFilter.lte, filters.maxDuration) : filters.maxDuration;
     }
-    where.duration = durationFilter;
+    where.duration = durationFilter as DurationFilter;
   }
 
   if (filters?.uploadDateFrom || filters?.uploadDateTo) {
-    const uploadDateFilter: Prisma.DateTimeFilter = {};
+    const uploadDateFilter: { gte?: Date; lte?: Date } = {};
     if (filters?.uploadDateFrom) {
       uploadDateFilter.gte = new Date(filters.uploadDateFrom);
     }
     if (filters?.uploadDateTo) {
-      uploadDateFilter.lte = new Date(filters.uploadDateTo);
+      const endOfDay = new Date(filters.uploadDateTo);
+      endOfDay.setHours(23, 59, 59, 999);  // End of day
+      uploadDateFilter.lte = endOfDay;
     }
-    where.uploadDate = uploadDateFilter;
+    where.uploadDate = uploadDateFilter as UploadDateFilter;
   }
 
   const [videos, total] = await prisma.$transaction([
@@ -412,13 +428,13 @@ export async function searchVideos(params: SearchVideosParams): Promise<SearchRe
         filter: filterClauses
       }
     };
+    const sortClause = normalizeSort(sort);
 
-    const response = await elasticClient.search({
+    const searchRequest: estypes.SearchRequest = {
       index: videoIndexName,
       from: (page - 1) * pageSize,
       size: pageSize,
       query: esQuery,
-      sort: normalizeSort(sort),
       highlight: {
         pre_tags: ["<mark>"],
         post_tags: ["</mark>"],
@@ -429,7 +445,13 @@ export async function searchVideos(params: SearchVideosParams): Promise<SearchRe
           tags: {}
         }
       }
-    });
+    };
+
+    if (sortClause) {
+      searchRequest.sort = sortClause;
+    }
+
+    const response = await elasticClient.search(searchRequest);
 
     const tookMs = response.took ?? Math.round(performance.now() - start);
     const hits = response.hits.hits as Array<estypes.SearchHit<IndexVideoPayload>>;

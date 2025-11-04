@@ -1,4 +1,7 @@
-import { Tag, Video } from "@prisma/client";
+import type { Prisma } from "../../node_modules/.prisma/client/index.d.ts";
+// import { PrismaClient } from '../generated/prisma'
+
+// const prisma = new PrismaClient()
 
 export interface CreateVideoInput {
   title: string;
@@ -33,8 +36,14 @@ export interface ListVideosOptions {
   pageSize: number;
 }
 
-export interface VideoWithRelations extends Video {
-  tags: Array<{
-    tag: Tag;
-  }>;
-}
+export type VideoRecord = Prisma.VideoGetPayload<{}>;
+
+export type VideoWithRelations = Prisma.VideoGetPayload<{
+  include: {
+    tags: {
+      include: {
+        tag: true;
+      };
+    };
+  };
+}>;

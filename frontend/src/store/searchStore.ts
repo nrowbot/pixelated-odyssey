@@ -124,14 +124,14 @@ export const useSearchStore = create<SearchState>()(
         const page = params?.page ?? state.page;
         const pageSize = params?.pageSize ?? state.pageSize;
         const within = params?.within;
-        const filters = params?.filters ? sanitizeFilters(params.filters) : state.filters;
+        const nextFilters = params?.filters ? sanitizeFilters(params.filters) : state.filters;
 
         set({ isLoading: true, error: undefined });
 
         try {
           const response = await searchVideosApi({
             query,
-            filters,
+            filters: nextFilters,
             sort,
             page,
             pageSize,
@@ -140,17 +140,17 @@ export const useSearchStore = create<SearchState>()(
 
           const recent: RecentSearch = {
             query,
-            filters,
+            filters: nextFilters,
             sort,
             timestamp: Date.now()
           };
 
-          const updatedRecent = [recent, ...state.recentSearches.filter((item) => !(item.query === query && JSON.stringify(item.filters) === JSON.stringify(filters)))]
+          const updatedRecent = [recent, ...state.recentSearches.filter((item) => !(item.query === query && JSON.stringify(item.filters) === JSON.stringify(nextFilters)))]
             .slice(0, 5);
 
           set({
             query,
-            filters,
+            filters: nextFilters,
             sort,
             page,
             pageSize,
@@ -170,7 +170,7 @@ export const useSearchStore = create<SearchState>()(
             total: 0,
             summary: "",
             tookMs: 0,
-            filters: params?.filters ? filters : state.filters
+            filters: params?.filters ? nextFilters : state.filters
           });
         }
       },
@@ -231,15 +231,12 @@ export const useSearchStore = create<SearchState>()(
           return;
         }
 
-        const filters = (saved.filters ?? {}) as VideoSearchFilters;
+        const filters = sanitizeFilters((saved.filters ?? {}) as VideoSearchFilters);
         set({
           query: saved.query ?? "",
           filters
         });
-        await get().search({
-          query: saved.query ?? "",
-          filters
-        });
+        await get().search({ page: 1 });
       },
       setViewMode: (mode) => set({ viewMode: mode }),
       loadCategories: async () => {
